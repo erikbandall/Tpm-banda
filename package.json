@@ -1,0 +1,24 @@
+{
+  "name": "escaner-mantenimiento-tooling",
+  "version": "1.0.0",
+  "description": "App de mantenimiento de herramental de proceso: inventario, autenticación por rol, programación y bitácora de mantenimiento.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "make-template": "node scripts/build-tools-template.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
