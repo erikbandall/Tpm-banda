@@ -11,13 +11,13 @@ const HEADERS = [
 ];
 
 // Filas de ejemplo -- bórralas y pon tus propias herramientas antes de subir
-// el archivo. "Categoría" acepta: maquina, herramienta, proceso o equipo.
+// el archivo. "Categoría" acepta: fixture, gancho o tooling.
 // "Estado" acepta: activo, en_mantenimiento o baja (si lo dejas vacío se usa "activo").
 const SAMPLE_ROWS = [
-  ['FX-1042', 'Fixture de ensamble puerta delantera', 'herramienta', 'Línea 1', 30, 'Raúl López', 1850, 'Planta 1', 'activo'],
-  ['GC-2031', 'Gancho transportador tipo C', 'herramienta', 'Línea 2', 7, 'Diana Ramos', 260, 'Planta 1', 'activo'],
-  ['MN-3010', 'Manipulador neumático de panel', 'maquina', 'Línea 1', 90, 'Raúl López', 6400, 'Planta 1', 'activo'],
-  ['HR-4005', 'Torquímetro digital calibrado', 'herramienta', 'Línea 1', 180, 'Raúl López', 950, 'Planta 1', 'activo']
+  ['FX-1042', 'Fixture de ensamble puerta delantera', 'fixture', 'Línea 1', 30, 'Raúl López', 1850, 'Planta 1', 'activo'],
+  ['GC-2031', 'Gancho transportador tipo C', 'gancho', 'Línea 2', 7, 'Diana Ramos', 260, 'Planta 1', 'activo'],
+  ['TL-3010', 'Manipulador neumático de panel', 'tooling', 'Línea 1', 90, 'Raúl López', 6400, 'Planta 1', 'activo'],
+  ['TL-4005', 'Torquímetro digital calibrado', 'tooling', 'Línea 1', 180, 'Raúl López', 950, 'Planta 1', 'activo']
 ];
 
 const wb = XLSX.utils.book_new();

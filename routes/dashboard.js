@@ -145,8 +145,8 @@ router.get('/by-line', async (req, res, next) => {
 // GET /api/dashboard/by-category
 router.get('/by-category', async (req, res, next) => {
   try {
-    const CATEGORY_LABELS = { maquina: 'Máquina', herramienta: 'Herramienta', proceso: 'Proceso', equipo: 'Equipo' };
-    const CATEGORIES = ['maquina', 'herramienta', 'proceso', 'equipo'];
+    const CATEGORY_LABELS = { fixture: 'Fixture', gancho: 'Gancho', tooling: 'Tooling' };
+    const CATEGORIES = ['fixture', 'gancho', 'tooling'];
 
     const t0 = today();
     const monthStart = t0.slice(0, 7) + '-01';

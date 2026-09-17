@@ -10,7 +10,7 @@ const { requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 const VALID_STATUS = ['activo', 'en_mantenimiento', 'baja'];
-const VALID_CATEGORY = ['maquina', 'herramienta', 'proceso', 'equipo'];
+const VALID_CATEGORY = ['fixture', 'gancho', 'tooling'];
 
 const UPLOADS_DIR = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, '..', 'data', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -119,7 +119,7 @@ router.post('/', requireRole('admin'), async (req, res, next) => {
       `).run(
         String(code).trim(),
         String(name).trim(),
-        category || 'herramienta',
+        category || 'tooling',
         type || null,
         location || null,
         assembly_line_id || null,
@@ -262,8 +262,9 @@ router.get('/:id/logs', async (req, res, next) => {
 /* ============================ Importar desde Excel ============================ */
 
 const CATEGORY_ALIASES = {
-  fixture: 'herramienta', gancho: 'herramienta', manipulador: 'maquina',
-  maquina: 'maquina', 'máquina': 'maquina', herramienta: 'herramienta', proceso: 'proceso', equipo: 'equipo'
+  fixture: 'fixture', gancho: 'gancho', tooling: 'tooling',
+  manipulador: 'tooling', maquina: 'tooling', 'máquina': 'tooling',
+  herramienta: 'gancho', proceso: 'tooling', equipo: 'tooling'
 };
 
 function normHeader(h) {
@@ -279,7 +280,7 @@ function mapImportRow(row, lineByName, techByName) {
   };
   const code = get('no. de parte', 'no de parte', 'numero de parte', 'codigo', 'code');
   const name = get('descripcion', 'nombre', 'name');
-  const categoryRaw = normHeader(get('categoria', 'tipo', 'category') || 'herramienta');
+  const categoryRaw = normHeader(get('categoria', 'tipo', 'category') || 'tooling');
   const lineName = get('linea', 'line');
   const freqDays = get('frecuencia (dias)', 'frecuencia', 'frequency_days');
   const techName = get('tecnico asignado', 'tecnico', 'technician');
@@ -293,7 +294,7 @@ function mapImportRow(row, lineByName, techByName) {
   return {
     code: code ? String(code).trim() : '',
     name: name ? String(name).trim() : '',
-    category: CATEGORY_ALIASES[categoryRaw] || 'herramienta',
+    category: CATEGORY_ALIASES[categoryRaw] || 'tooling',
     assembly_line_id: line ? line.id : null,
     frequency_days: freqDays ? Number(freqDays) : null,
     technician_id: tech ? tech.id : null,

@@ -61,7 +61,7 @@ function paintUserChip() {
 // backend ya rechaza estas acciones si alguien las intenta sin permiso; esto
 // es solo para que la interfaz no ofrezca botones que de todas formas fallarían.
 function applyRolePermissions() {
-  const adminOnlyIds = ['btnNewTool', 'btnImportTools', 'btnNewSchedule', 'btnNewTechnician', 'btnNewLine', 'usersSubtabBtn'];
+  const adminOnlyIds = ['btnNewTool', 'btnImportTools', 'btnNewSchedule', 'btnNewTechnician', 'btnNewEngineer', 'btnNewLine', 'usersSubtabBtn'];
   adminOnlyIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', !isAdmin());
@@ -73,6 +73,7 @@ function applyRolePermissions() {
     // debe verse la lista de cuentas ni quedar seleccionado ese subtab.
     document.getElementById('csub-users').classList.add('hidden');
     document.getElementById('csub-technicians').classList.remove('hidden');
+    document.getElementById('csub-engineers').classList.add('hidden');
     document.getElementById('csub-lines').classList.add('hidden');
     configSub = 'technicians';
     document.querySelectorAll('#tab-config .subtabs .subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.csub === 'technicians'));
@@ -184,21 +185,23 @@ function toast(msg, isError) {
   toastTimer = setTimeout(() => { t.classList.add('hidden'); }, 3200);
 }
 
-const CATEGORY_LABELS = { maquina: 'Máquina', herramienta: 'Herramienta', proceso: 'Proceso', equipo: 'Equipo' };
+const CATEGORY_LABELS = { fixture: 'Fixture', gancho: 'Gancho', tooling: 'Tooling' };
 function categoryLabel(cat) { return CATEGORY_LABELS[cat] || cat || '—'; }
 
-/* ------------------------ Evidencia PDF (bitácora) ------------------------ */
+/* ------------------------ Evidencia / foto del checklist (bitácora) ------------------------ */
 
 function evidenceButtonHtml(log) {
-  return log.evidence_filename
-    ? `<a class="btn btn-secondary btn-sm" href="/api/maintenance/logs/${log.id}/evidence" target="_blank" rel="noopener">📄 Ver PDF</a>`
-    : `<button class="btn btn-secondary btn-sm" data-action="attach-evidence" data-id="${log.id}">+ PDF</button>`;
+  if (!log.evidence_filename) {
+    return `<button class="btn btn-secondary btn-sm" data-action="attach-evidence" data-id="${log.id}">+ Adjunto</button>`;
+  }
+  const isImage = /\.(jpg|jpeg|png|webp)$/i.test(log.evidence_filename);
+  return `<a class="btn btn-secondary btn-sm" href="/api/maintenance/logs/${log.id}/evidence" target="_blank" rel="noopener">${isImage ? '🖼️ Ver foto' : '📄 Ver PDF'}</a>`;
 }
 
 function pickAndUploadEvidence(logId, onDone) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'application/pdf';
+  input.accept = 'application/pdf,image/jpeg,image/png,image/webp';
   input.addEventListener('change', async () => {
     const file = input.files[0];
     if (!file) return;
@@ -231,7 +234,7 @@ function toolThumbHtml(tool, size) {
 }
 
 function categoryIcon(cat) {
-  return { maquina: '⚙️', herramienta: '🔧', proceso: '🔄', equipo: '📦' }[cat] || '📦';
+  return { fixture: '🗜️', gancho: '🪝', tooling: '🔧' }[cat] || '🔧';
 }
 
 function pickAndUploadPhoto(toolId, onDone) {
@@ -307,6 +310,7 @@ modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) c
 
 let toolsCache = [];
 let techniciansCache = [];
+let engineersCache = [];
 let linesCache = [];
 
 async function refreshToolsCache() {
@@ -316,6 +320,10 @@ async function refreshToolsCache() {
 async function refreshTechniciansCache() {
   techniciansCache = await api('GET', '/api/technicians?active=true');
   return techniciansCache;
+}
+async function refreshEngineersCache() {
+  engineersCache = await api('GET', '/api/engineers?active=true');
+  return engineersCache;
 }
 async function refreshLinesCache() {
   linesCache = await api('GET', '/api/lines');
@@ -329,6 +337,11 @@ function toolOptionsHtml(selectedId) {
 function technicianOptionsHtml(selectedId) {
   return techniciansCache.map(t =>
     `<option value="${t.id}" ${String(t.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(t.name)}</option>`
+  ).join('');
+}
+function engineerOptionsHtml(selectedId) {
+  return engineersCache.map(e =>
+    `<option value="${e.id}" ${String(e.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(e.name)}</option>`
   ).join('');
 }
 function lineOptionsHtml(selectedId) {
@@ -358,7 +371,7 @@ const pageMeta = {
   tools: { title: 'Herramientas', sub: 'Máquinas, herramientas y procesos que requieren mantenimiento' },
   maintenance: { title: 'Mantenimiento', sub: 'Programación y bitácora de mantenimiento preventivo' },
   calendar: { title: 'Calendario', sub: 'Programación de mantenimiento por frecuencia — vista mensual' },
-  config: { title: 'Configuración', sub: 'Técnicos de manufactura y líneas de ensamble' }
+  config: { title: 'Configuración', sub: 'Técnicos, ingenieros y líneas de ensamble' }
 };
 
 document.addEventListener('click', (e) => {
@@ -678,6 +691,7 @@ async function renderCategoryChart() {
 
 let currentToolDetailId = null;
 let toolDetailSub = 'sched';
+let toolCategoryTab = '';
 
 async function renderTools() {
   await refreshLinesCache();
@@ -686,7 +700,7 @@ async function renderTools() {
 
 async function loadToolsTable() {
   const q = document.getElementById('toolSearch').value.trim();
-  const category = document.getElementById('toolCategoryFilter').value;
+  const category = toolCategoryTab;
   const status = document.getElementById('toolStatusFilter').value;
   const params = new URLSearchParams();
   if (q) params.set('q', q);
@@ -714,8 +728,14 @@ async function loadToolsTable() {
 }
 
 document.getElementById('toolSearch').addEventListener('input', debounce(loadToolsTable, 250));
-document.getElementById('toolCategoryFilter').addEventListener('change', loadToolsTable);
 document.getElementById('toolStatusFilter').addEventListener('change', loadToolsTable);
+document.querySelectorAll('#toolCategoryTabs .subtab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    toolCategoryTab = btn.dataset.toolcat;
+    document.querySelectorAll('#toolCategoryTabs .subtab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    loadToolsTable();
+  });
+});
 
 document.getElementById('toolsBody').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-action]');
@@ -799,10 +819,9 @@ function openToolForm(tool) {
         <div class="field">
           <label>Categoría</label>
           <select name="category">
-            <option value="maquina" ${tool?.category === 'maquina' ? 'selected' : ''}>Máquina</option>
-            <option value="herramienta" ${!tool || tool?.category === 'herramienta' ? 'selected' : ''}>Herramienta</option>
-            <option value="proceso" ${tool?.category === 'proceso' ? 'selected' : ''}>Proceso</option>
-            <option value="equipo" ${tool?.category === 'equipo' ? 'selected' : ''}>Equipo</option>
+            <option value="fixture" ${tool?.category === 'fixture' ? 'selected' : ''}>Fixture</option>
+            <option value="gancho" ${tool?.category === 'gancho' ? 'selected' : ''}>Gancho</option>
+            <option value="tooling" ${!tool || tool?.category === 'tooling' ? 'selected' : ''}>Tooling</option>
           </select>
         </div>
         <div class="field"><label>Tipo (opcional)</label><input name="type" placeholder="Ej. Prensa hidráulica, troquel..." value="${escapeHtml(tool?.type || '')}"></div>
@@ -908,9 +927,56 @@ function categoryLabelStatus(status) {
   return labels[status] || status;
 }
 
+function printToolReport(tool) {
+  const win = window.open('', '_blank', 'width=800,height=900');
+  if (!win) { toast('Habilita las ventanas emergentes para poder imprimir', true); return; }
+  const photoUrl = tool.photo_filename ? window.location.origin + toolPhotoUrl(tool) : null;
+  win.document.write(`<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><title>Reporte — ${escapeHtml(tool.code)}</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 32px; }
+  h1 { font-size: 20px; margin-bottom: 2px; }
+  .sub { color: #555; font-size: 13px; margin-bottom: 24px; }
+  .layout { display: flex; gap: 24px; align-items: flex-start; }
+  .photo { width: 220px; height: 220px; object-fit: cover; border: 1px solid #ddd; border-radius: 6px; flex-shrink: 0; }
+  .photo-placeholder { width: 220px; height: 220px; border: 1px dashed #ccc; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 13px; flex-shrink: 0; }
+  table { border-collapse: collapse; flex: 1; }
+  td { padding: 7px 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+  td.label { font-weight: 700; color: #444; width: 170px; }
+  .foot { margin-top: 28px; font-size: 11px; color: #888; }
+</style></head>
+<body>
+  <h1>${escapeHtml(tool.code)} — ${escapeHtml(tool.name)}</h1>
+  <div class="sub">Reporte de activo — TOOLMAINT</div>
+  <div class="layout">
+    ${photoUrl ? `<img class="photo" src="${photoUrl}">` : `<div class="photo-placeholder">Sin fotografía</div>`}
+    <table>
+      <tr><td class="label">Categoría</td><td>${categoryLabel(tool.category)}</td></tr>
+      <tr><td class="label">Tipo</td><td>${escapeHtml(tool.type || '—')}</td></tr>
+      <tr><td class="label">Línea de ensamble</td><td>${escapeHtml(tool.line_name || 'Sin asignar')}</td></tr>
+      <tr><td class="label">Ubicación</td><td>${escapeHtml(tool.location || '—')}</td></tr>
+      <tr><td class="label">Costo aproximado</td><td>${fmtMoney(tool.cost)}</td></tr>
+      <tr><td class="label">Estado</td><td>${categoryLabelStatus(tool.status)}</td></tr>
+      <tr><td class="label">Notas</td><td>${escapeHtml(tool.notes || '—')}</td></tr>
+    </table>
+  </div>
+  <div class="foot">Generado el ${new Date().toLocaleString('es-MX')}</div>
+</body></html>`);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
+}
+
 document.getElementById('btnCloseToolDetail').addEventListener('click', () => {
   document.getElementById('toolDetailCard').classList.add('hidden');
   currentToolDetailId = null;
+});
+
+document.getElementById('btnPrintTool').addEventListener('click', async () => {
+  if (!currentToolDetailId) return;
+  try {
+    const tool = await api('GET', `/api/tools/${currentToolDetailId}`);
+    printToolReport(tool);
+  } catch (err) { toast(err.message, true); }
 });
 
 document.querySelectorAll('#toolDetailCard .subtab-btn').forEach(btn => {
@@ -1199,8 +1265,8 @@ async function openLogForm(preset) {
       </div>
 
       <div class="field">
-        <label>Evidencia (PDF, opcional)</label>
-        <input type="file" id="logEvidenceInput" accept="application/pdf">
+        <label>Adjunto o foto del checklist realizado (PDF o imagen, opcional)</label>
+        <input type="file" id="logEvidenceInput" accept="application/pdf,image/jpeg,image/png,image/webp">
       </div>
 
       <div class="form-actions">
@@ -1268,7 +1334,7 @@ let calYear, calMonth, calMode = 'programado';
   calMonth = now.getMonth();
 })();
 
-const CATEGORY_COLORS = { maquina: 'var(--brand)', herramienta: 'var(--viz-good)', proceso: 'var(--viz-warn)', equipo: 'var(--viz-neutral)' };
+const CATEGORY_COLORS = { fixture: 'var(--brand)', gancho: 'var(--viz-warn)', tooling: 'var(--viz-good)' };
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || 'var(--viz-neutral)'; }
 
 let calendarEventsByDate = {};
@@ -1399,6 +1465,7 @@ let configSub = 'technicians';
 
 async function renderConfig() {
   await loadTechnicians();
+  await loadEngineers();
   await loadLines();
   if (isAdmin()) await loadUsers();
 }
@@ -1409,6 +1476,7 @@ document.querySelectorAll('#tab-config .subtabs .subtab-btn').forEach(btn => {
     configSub = btn.dataset.csub;
     document.querySelectorAll('#tab-config .subtabs .subtab-btn').forEach(b => b.classList.toggle('active', b === btn));
     document.getElementById('csub-technicians').classList.toggle('hidden', configSub !== 'technicians');
+    document.getElementById('csub-engineers').classList.toggle('hidden', configSub !== 'engineers');
     document.getElementById('csub-lines').classList.toggle('hidden', configSub !== 'lines');
     document.getElementById('csub-users').classList.toggle('hidden', configSub !== 'users');
   });
@@ -1422,7 +1490,7 @@ async function loadUsers() {
     <tr>
       <td class="mono">${escapeHtml(u.username)}</td>
       <td>${ROLE_LABELS[u.role] || u.role}</td>
-      <td>${escapeHtml(u.technician_name || '—')}</td>
+      <td>${escapeHtml(u.technician_name || u.engineer_name || '—')}</td>
       <td>${u.active ? '<span class="badge badge-activo">Activa</span>' : '<span class="badge">Inactiva</span>'}</td>
       <td class="row-actions">
         <button class="btn btn-secondary btn-sm" data-action="edit-user" data-id="${u.id}">Editar</button>
@@ -1432,7 +1500,7 @@ async function loadUsers() {
 }
 
 document.getElementById('btnNewUser').addEventListener('click', async () => {
-  await refreshTechniciansCache();
+  await Promise.all([refreshTechniciansCache(), refreshEngineersCache()]);
   openUserForm(null);
 });
 
@@ -1440,7 +1508,7 @@ document.getElementById('usersBody').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-action]');
   if (!btn) return;
   if (btn.dataset.action === 'edit-user') {
-    await refreshTechniciansCache();
+    await Promise.all([refreshTechniciansCache(), refreshEngineersCache()]);
     const rows = await api('GET', '/api/users');
     openUserForm(rows.find(r => String(r.id) === String(btn.dataset.id)));
   } else if (btn.dataset.action === 'delete-user') {
@@ -1476,6 +1544,14 @@ function openUserForm(user) {
         </select>
       </div>
       ${!isEdit ? `<div class="field" id="userTechNameWrap"><label>...o crea un técnico nuevo con este nombre</label><input name="technician_name" placeholder="Nombre completo (opcional si ya elegiste uno arriba)"></div>` : ''}
+      <div class="field hidden" id="userEngFieldWrap">
+        <label>Ingeniero ligado (para rol Ingeniero)</label>
+        <select name="engineer_id">
+          <option value="">— Sin ligar —</option>
+          ${engineerOptionsHtml(user?.engineer_id)}
+        </select>
+      </div>
+      ${!isEdit ? `<div class="field hidden" id="userEngNameWrap"><label>...o crea un ingeniero nuevo con este nombre</label><input name="engineer_name" placeholder="Nombre completo (opcional si ya elegiste uno arriba)"></div>` : ''}
       <div class="field"><label>${isEdit ? 'Nueva contraseña (déjalo vacío para no cambiarla)' : 'Contraseña'}</label><input name="password" type="password" ${isEdit ? '' : 'required'} minlength="6" placeholder="Mínimo 6 caracteres"></div>
       ${isEdit ? `<div class="field"><label><input type="checkbox" name="active" value="1" style="width:auto;display:inline-block;margin-right:6px;" ${user.active ? 'checked' : ''}> Cuenta activa</label></div>` : ''}
       <div class="form-actions">
@@ -1484,6 +1560,19 @@ function openUserForm(user) {
       </div>
     </form>
   `);
+
+  function syncUserRoleFields() {
+    const role = document.getElementById('userRoleSelect').value;
+    document.getElementById('userTechFieldWrap').classList.toggle('hidden', role !== 'tecnico');
+    const techNameWrap = document.getElementById('userTechNameWrap');
+    if (techNameWrap) techNameWrap.classList.toggle('hidden', role !== 'tecnico');
+    document.getElementById('userEngFieldWrap').classList.toggle('hidden', role !== 'ingeniero');
+    const engNameWrap = document.getElementById('userEngNameWrap');
+    if (engNameWrap) engNameWrap.classList.toggle('hidden', role !== 'ingeniero');
+  }
+  syncUserRoleFields();
+  document.getElementById('userRoleSelect').addEventListener('change', syncUserRoleFields);
+
   document.getElementById('userCancel').addEventListener('click', closeModal);
   document.getElementById('userForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1507,12 +1596,13 @@ async function loadTechnicians() {
     <tr>
       <td>${escapeHtml(t.name)}</td>
       <td>${escapeHtml(t.area || '—')}</td>
+      <td>${escapeHtml(t.email || '—')}</td>
       <td>${t.active ? '<span class="badge badge-activo">Activo</span>' : '<span class="badge">Inactivo</span>'}</td>
       <td class="row-actions">${isAdmin() ? `
         <button class="btn btn-secondary btn-sm" data-action="edit-tech" data-id="${t.id}">Editar</button>
         <button class="btn btn-danger btn-sm" data-action="delete-tech" data-id="${t.id}">Eliminar</button>` : '<span class="muted">—</span>'}
       </td>
-    </tr>`).join('') : `<tr class="empty-row"><td colspan="4">Sin técnicos registrados.</td></tr>`;
+    </tr>`).join('') : `<tr class="empty-row"><td colspan="5">Sin técnicos registrados.</td></tr>`;
 }
 
 document.getElementById('btnNewTechnician').addEventListener('click', () => openTechnicianForm(null));
@@ -1535,7 +1625,10 @@ function openTechnicianForm(tech) {
   openModal(isEdit ? 'Editar técnico' : 'Nuevo técnico de manufactura', `
     <form id="techForm">
       <div class="field"><label>Nombre</label><input name="name" required value="${escapeHtml(tech?.name || '')}"></div>
-      <div class="field"><label>Área</label><input name="area" placeholder="Manufactura, Mantenimiento..." value="${escapeHtml(tech?.area || '')}"></div>
+      <div class="field-row">
+        <div class="field"><label>Área</label><input name="area" placeholder="Manufactura, Mantenimiento..." value="${escapeHtml(tech?.area || '')}"></div>
+        <div class="field"><label>Correo (para notificaciones)</label><input name="email" type="email" placeholder="nombre@empresa.com" value="${escapeHtml(tech?.email || '')}"></div>
+      </div>
       ${isEdit ? `<div class="field"><label><input type="checkbox" name="active" value="1" style="width:auto;display:inline-block;margin-right:6px;" ${tech.active ? 'checked' : ''}> Técnico activo</label></div>` : ''}
       <div class="form-actions">
         <button type="button" class="btn btn-secondary" id="techCancel">Cancelar</button>
@@ -1555,6 +1648,70 @@ function openTechnicianForm(tech) {
       toast(isEdit ? 'Técnico actualizado' : 'Técnico creado');
       closeModal();
       await loadTechnicians();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+/* -------------------------- Ingenieros -------------------------- */
+
+async function loadEngineers() {
+  const rows = await api('GET', '/api/engineers');
+  document.getElementById('engineersBody').innerHTML = rows.length ? rows.map(e => `
+    <tr>
+      <td>${escapeHtml(e.name)}</td>
+      <td>${escapeHtml(e.area || '—')}</td>
+      <td>${escapeHtml(e.email || '—')}</td>
+      <td>${e.active ? '<span class="badge badge-activo">Activo</span>' : '<span class="badge">Inactivo</span>'}</td>
+      <td class="row-actions">${isAdmin() ? `
+        <button class="btn btn-secondary btn-sm" data-action="edit-eng" data-id="${e.id}">Editar</button>
+        <button class="btn btn-danger btn-sm" data-action="delete-eng" data-id="${e.id}">Eliminar</button>` : '<span class="muted">—</span>'}
+      </td>
+    </tr>`).join('') : `<tr class="empty-row"><td colspan="5">Sin ingenieros registrados.</td></tr>`;
+}
+
+document.getElementById('btnNewEngineer').addEventListener('click', () => openEngineerForm(null));
+document.getElementById('engineersBody').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  if (btn.dataset.action === 'edit-eng') {
+    const rows = await api('GET', '/api/engineers');
+    openEngineerForm(rows.find(r => String(r.id) === String(btn.dataset.id)));
+  } else if (btn.dataset.action === 'delete-eng') {
+    if (!confirm('¿Eliminar este ingeniero?')) return;
+    await api('DELETE', `/api/engineers/${btn.dataset.id}`);
+    toast('Ingeniero eliminado');
+    await loadEngineers();
+  }
+});
+
+function openEngineerForm(engineer) {
+  const isEdit = !!engineer;
+  openModal(isEdit ? 'Editar ingeniero' : 'Nuevo ingeniero', `
+    <form id="engForm">
+      <div class="field"><label>Nombre</label><input name="name" required value="${escapeHtml(engineer?.name || '')}"></div>
+      <div class="field-row">
+        <div class="field"><label>Área</label><input name="area" placeholder="Manufactura, Calidad..." value="${escapeHtml(engineer?.area || '')}"></div>
+        <div class="field"><label>Correo (para notificaciones)</label><input name="email" type="email" placeholder="nombre@empresa.com" value="${escapeHtml(engineer?.email || '')}"></div>
+      </div>
+      ${isEdit ? `<div class="field"><label><input type="checkbox" name="active" value="1" style="width:auto;display:inline-block;margin-right:6px;" ${engineer.active ? 'checked' : ''}> Ingeniero activo</label></div>` : ''}
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" id="engCancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? 'Guardar cambios' : 'Crear'}</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('engCancel').addEventListener('click', closeModal);
+  document.getElementById('engForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const payload = Object.fromEntries(new FormData(form).entries());
+    if (isEdit) payload.active = form.elements.active && form.elements.active.checked ? 1 : 0;
+    try {
+      if (isEdit) await api('PUT', `/api/engineers/${engineer.id}`, payload);
+      else await api('POST', '/api/engineers', payload);
+      toast(isEdit ? 'Ingeniero actualizado' : 'Ingeniero creado');
+      closeModal();
+      await loadEngineers();
     } catch (err) { toast(err.message, true); }
   });
 }

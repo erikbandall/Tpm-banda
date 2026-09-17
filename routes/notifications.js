@@ -85,3 +85,4 @@ router.post('/read-all', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.syncNotifications = syncNotifications;

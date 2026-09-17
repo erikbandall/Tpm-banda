@@ -232,20 +232,16 @@
 
         <!-- ============ TOOLS ============ -->
         <section id="tab-tools" class="tab-panel hidden">
+          <div class="subtabs" id="toolCategoryTabs">
+            <button class="subtab-btn active" data-toolcat="">Todos</button>
+            <button class="subtab-btn" data-toolcat="fixture">Fixtures</button>
+            <button class="subtab-btn" data-toolcat="gancho">Ganchos</button>
+            <button class="subtab-btn" data-toolcat="tooling">Tooling</button>
+          </div>
           <div class="filters-row">
             <div class="field">
               <label>Buscar</label>
               <input type="text" id="toolSearch" placeholder="Código, nombre, tipo, ubicación...">
-            </div>
-            <div class="field">
-              <label>Categoría</label>
-              <select id="toolCategoryFilter">
-                <option value="">Todas</option>
-                <option value="maquina">Máquina</option>
-                <option value="herramienta">Herramienta</option>
-                <option value="proceso">Proceso</option>
-                <option value="equipo">Equipo</option>
-              </select>
             </div>
             <div class="field">
               <label>Estado</label>
@@ -273,7 +269,10 @@
           <div class="card hidden" id="toolDetailCard">
             <div class="card-header">
               <span class="card-title" id="toolDetailTitle">Detalle</span>
-              <button class="btn btn-secondary btn-sm" id="btnCloseToolDetail">Cerrar</button>
+              <div class="row-actions">
+                <button class="btn btn-secondary btn-sm" id="btnPrintTool">🖨️ Imprimir reporte</button>
+                <button class="btn btn-secondary btn-sm" id="btnCloseToolDetail">Cerrar</button>
+              </div>
             </div>
             <div class="card-body">
               <div id="toolDetailPhoto" class="tool-detail-photo"></div>
@@ -354,10 +353,9 @@
             </div>
           </div>
           <div class="cal-legend">
-            <span><i class="cal-dot" style="background:var(--brand)"></i>Máquina</span>
-            <span><i class="cal-dot" style="background:var(--viz-good)"></i>Herramienta</span>
-            <span><i class="cal-dot" style="background:var(--viz-warn)"></i>Proceso</span>
-            <span><i class="cal-dot" style="background:var(--viz-neutral)"></i>Equipo</span>
+            <span><i class="cal-dot" style="background:var(--brand)"></i>Fixture</span>
+            <span><i class="cal-dot" style="background:var(--viz-warn)"></i>Gancho</span>
+            <span><i class="cal-dot" style="background:var(--viz-good)"></i>Tooling</span>
           </div>
           <div class="cal-grid" id="calGrid"></div>
         </section>
@@ -366,6 +364,7 @@
         <section id="tab-config" class="tab-panel hidden">
           <div class="subtabs">
             <button class="subtab-btn active" data-csub="technicians">Técnicos</button>
+            <button class="subtab-btn" data-csub="engineers">Ingenieros</button>
             <button class="subtab-btn" data-csub="lines">Líneas de ensamble</button>
             <button class="subtab-btn hidden" data-csub="users" id="usersSubtabBtn">Usuarios</button>
           </div>
@@ -377,8 +376,22 @@
             <div class="card">
               <div class="card-body table-wrap">
                 <table>
-                  <thead><tr><th>Nombre</th><th>Área</th><th>Estado</th><th></th></tr></thead>
+                  <thead><tr><th>Nombre</th><th>Área</th><th>Correo</th><th>Estado</th><th></th></tr></thead>
                   <tbody id="techniciansBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div id="csub-engineers" class="hidden">
+            <div class="filters-row">
+              <button class="btn btn-primary" id="btnNewEngineer">+ Nuevo ingeniero</button>
+            </div>
+            <div class="card">
+              <div class="card-body table-wrap">
+                <table>
+                  <thead><tr><th>Nombre</th><th>Área</th><th>Correo</th><th>Estado</th><th></th></tr></thead>
+                  <tbody id="engineersBody"></tbody>
                 </table>
               </div>
             </div>
@@ -405,7 +418,7 @@
             <div class="card">
               <div class="card-body table-wrap">
                 <table>
-                  <thead><tr><th>Usuario</th><th>Rol</th><th>Técnico ligado</th><th>Estado</th><th></th></tr></thead>
+                  <thead><tr><th>Usuario</th><th>Rol</th><th>Técnico/Ingeniero ligado</th><th>Estado</th><th></th></tr></thead>
                   <tbody id="usersBody"></tbody>
                 </table>
               </div>

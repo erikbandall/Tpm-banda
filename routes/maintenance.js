@@ -11,14 +11,18 @@ const router = express.Router();
 const UPLOADS_DIR = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, '..', 'data', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+const EVIDENCE_EXT_BY_MIME = {
+  'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp'
+};
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-    filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}.pdf`)
+    filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}${EVIDENCE_EXT_BY_MIME[file.mimetype] || ''}`)
   }),
   limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB
   fileFilter: (req, file, cb) => {
-    if (file.mimetype !== 'application/pdf') return cb(new Error('Solo se admiten archivos PDF'));
+    if (!EVIDENCE_EXT_BY_MIME[file.mimetype]) return cb(new Error('Solo se admiten archivos PDF, JPG, PNG o WEBP'));
     cb(null, true);
   }
 });
@@ -353,7 +357,7 @@ router.delete('/logs/:id', requireRole('admin'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* -------------------- Evidencia PDF del checklist -------------------- */
+/* -------------------- Evidencia/foto del checklist -------------------- */
 
 // POST /api/maintenance/logs/:id/evidence -- admin o el técnico dueño del registro
 router.post('/logs/:id/evidence', (req, res, next) => {
@@ -370,7 +374,7 @@ router.post('/logs/:id/evidence', (req, res, next) => {
         if (req.file) fs.unlink(req.file.path, () => {});
         return res.status(403).json({ error: 'No puedes modificar este registro.' });
       }
-      if (!req.file) return res.status(400).json({ error: 'Adjunta un archivo PDF' });
+      if (!req.file) return res.status(400).json({ error: 'Adjunta un archivo PDF o una foto' });
 
       if (log.evidence_filename) fs.unlink(path.join(UPLOADS_DIR, log.evidence_filename), () => {});
 
@@ -387,15 +391,20 @@ router.post('/logs/:id/evidence', (req, res, next) => {
   });
 });
 
-// GET /api/maintenance/logs/:id/evidence -- ver/descargar el PDF
+const CONTENT_TYPE_BY_EXT = {
+  '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'
+};
+
+// GET /api/maintenance/logs/:id/evidence -- ver/descargar el PDF o foto adjunta
 router.get('/logs/:id/evidence', async (req, res, next) => {
   try {
     const log = await db.prepare('SELECT * FROM maintenance_logs WHERE id = ?').get(req.params.id);
     if (!log || !log.evidence_filename) return res.status(404).json({ error: 'Sin evidencia adjunta' });
     const filePath = path.join(UPLOADS_DIR, log.evidence_filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'El archivo ya no está disponible' });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${(log.evidence_original_name || 'evidencia.pdf').replace(/"/g, '')}"`);
+    const ext = path.extname(log.evidence_filename).toLowerCase();
+    res.setHeader('Content-Type', CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${(log.evidence_original_name || `evidencia${ext}`).replace(/"/g, '')}"`);
     fs.createReadStream(filePath).pipe(res);
   } catch (err) { next(err); }
 });

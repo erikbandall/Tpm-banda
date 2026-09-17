@@ -34,7 +34,7 @@ Tres roles:
 
 | Rol | Puede hacer |
 |---|---|
-| **Administrador** | Todo: alta/edición/baja de herramientas, líneas, técnicos, programaciones, importación desde Excel, y **crear/editar/eliminar cuentas de usuario** (incluyendo asignarles rol y técnico ligado). |
+| **Administrador** | Todo: alta/edición/baja de herramientas, líneas, técnicos, ingenieros, programaciones, importación desde Excel, y **crear/editar/eliminar cuentas de usuario** (incluyendo asignarles rol y técnico/ingeniero ligado). |
 | **Ingeniero** | Ver todo (solo lectura). No puede editar herramientas/líneas/técnicos/programaciones, ni gestionar cuentas, ni completar mantenimientos. |
 | **Técnico** | Ver todo; **completar mantenimientos** (registrar bitácora) únicamente de las programaciones asignadas a sí mismo, y solo a su propio nombre — nunca a nombre de otro técnico. No puede editar el catálogo ni gestionar cuentas. |
 
@@ -42,7 +42,9 @@ Cada cuenta de técnico está ligada a un registro de la tabla de técnicos
 (`technician_id`); así el sistema sabe qué programaciones puede completar esa
 persona. Se liga al crear la cuenta en Configuración → Usuarios (puedes
 elegir un técnico ya existente o escribir un nombre nuevo para crearlo de
-una vez).
+una vez). Una cuenta de ingeniero puede ligarse de la misma forma a un
+registro de la tabla de ingenieros (`engineer_id`) — es solo referencia de
+contacto, no cambia sus permisos.
 
 La sesión se guarda en una cookie `httpOnly` (no accesible desde JavaScript,
 así que no se puede robar con un simple script) válida 30 días; "Cerrar
@@ -56,16 +58,20 @@ sesión" en el menú del usuario (arriba a la derecha) la invalida al momento.
   cumplimiento a 90 días, **valor total del herramental**); filtros por
   línea y técnico; gráficas de tendencia, cumplimiento por técnico, por
   categoría y **costo por línea**; tablas de vencidos/próximos/recientes.
-- **Herramientas**: inventario de máquinas, herramientas, fixtures, ganchos
-  y procesos — código, categoría, línea de ensamble, ubicación, **costo
-  aproximado** y estado. Vista de detalle con sus programaciones y bitácora.
-  Alta manual una por una, o **en lote desde un archivo Excel**.
+- **Herramientas**: inventario de herramental de proceso separado en tres
+  secciones — **Fixtures**, **Ganchos** y **Tooling** — con código, línea de
+  ensamble, ubicación, **costo aproximado**, **fotografía** y estado. Vista
+  de detalle con sus programaciones y bitácora, y botón **"Imprimir
+  reporte"** que genera una hoja lista para imprimir con la foto y los
+  datos generales del activo. Alta manual una por una, o **en lote desde un
+  archivo Excel**.
 - **Mantenimiento**:
   - *Programaciones*: tipo, frecuencia en días, técnico asignado, turno,
     anticipación de alerta configurable y checklist de ítems a realizar.
     Alta/edición/baja solo para Administrador.
-  - *Bitácora*: registro de cada mantenimiento con técnico, turno, y el
-    checklist marcado ítem por ítem (con notas). Registrar contra una
+  - *Bitácora*: registro de cada mantenimiento con técnico, turno, el
+    checklist marcado ítem por ítem (con notas) y un **adjunto opcional
+    (PDF o foto) del checklist realizado**. Registrar contra una
     programación recalcula automáticamente su próxima fecha y marca si se
     hizo a tiempo o tarde. Un Técnico solo puede registrar mantenimientos a
     su propio nombre, y si eligen una programación, solo si está asignada a
@@ -73,11 +79,14 @@ sesión" en el menú del usuario (arriba a la derecha) la invalida al momento.
 - **Calendario**: vista mensual de mantenimiento (Programados / Historial),
   con chips por día coloreados por categoría de activo, navegación entre
   meses y un modal por día para completar el mantenimiento directamente.
-- **Configuración**: gestión de técnicos de manufactura, líneas de ensamble
-  y (solo Administrador) **cuentas de usuario**.
-- **Notificaciones**: centro de alertas (campana con contador) que genera
-  avisos de mantenimientos vencidos y próximos a vencer. No envía
-  correo/SMS — ver Notas.
+- **Configuración**: catálogos de técnicos de manufactura e **ingenieros**
+  (nombre, área y correo), líneas de ensamble y (solo Administrador)
+  **cuentas de usuario** — cada cuenta de técnico/ingeniero puede ligarse a
+  su registro del catálogo correspondiente.
+- **Notificaciones**: centro de alertas en la app (campana con contador) que
+  genera avisos de mantenimientos vencidos y próximos a vencer, más un
+  **resumen diario por correo** a cada técnico (vía Resend) con sus
+  mantenimientos pendientes — ver "Notificaciones por correo" más abajo.
 
 ### Importar herramientas desde Excel
 
@@ -89,7 +98,7 @@ primera fila:
 |---|---|---|
 | No. de Parte | Sí | Código único del activo |
 | Descripción | Sí | Nombre/descripción |
-| Categoría | No | `maquina`, `herramienta`, `proceso` o `equipo` (por defecto `herramienta`) |
+| Categoría | No | `fixture`, `gancho` o `tooling` (por defecto `tooling`) |
 | Línea | No | Se empareja por nombre con una línea ya existente; si no coincide, se importa sin línea |
 | Frecuencia (días) | No | Si viene, además crea la primera programación de mantenimiento preventivo |
 | Técnico Asignado | No | Se empareja por nombre con un técnico ya existente |
@@ -102,6 +111,30 @@ Corre `npm run make-template` para regenerar `plantilla-herramientas.xlsx`
 pon tus propias herramientas antes de importar. Filas con código duplicado
 o sin No. de Parte/Descripción se omiten y se listan como error, sin
 detener la importación del resto.
+
+### Notificaciones por correo
+
+Cada técnico (Configuración → Técnicos) puede tener un correo capturado. Si
+lo tiene, recibe una vez al día un resumen de sus mantenimientos **vencidos**
+y **próximos a vencer**, enviado con [Resend](https://resend.com).
+
+Para activarlo:
+
+1. Crea una cuenta gratis en [resend.com](https://resend.com) y genera una
+   API key.
+2. En Vercel (Project Settings → Environment Variables) define:
+   | Variable | Para qué |
+   |---|---|
+   | `RESEND_API_KEY` | La API key que generaste en Resend. |
+   | `RESEND_FROM_EMAIL` | Remitente, ej. `TOOLMAINT <notificaciones@tudominio.com>`. Si no lo defines, usa la dirección de pruebas de Resend (`onboarding@resend.dev`), que solo entrega a la cuenta dueña de la API key — para enviar a técnicos reales necesitas verificar tu propio dominio en Resend y usarlo aquí. |
+   | `CRON_SECRET` | Cadena aleatoria que tú inventes. Protege el endpoint `/api/cron/notify-due` para que solo Vercel Cron pueda dispararlo. |
+3. El archivo `vercel.json` ya incluye un Cron Job (`/api/cron/notify-due`)
+   que corre una vez al día. En el plan gratis de Vercel los Cron Jobs están
+   limitados a una ejecución diaria; si tienes un plan de pago puedes ajustar
+   el horario (`schedule`, formato cron estándar, en UTC).
+
+Si no configuras `RESEND_API_KEY`, el envío simplemente se omite (se registra
+en los logs) — el resto de la app sigue funcionando normal.
 
 ## Stack
 
@@ -172,6 +205,9 @@ gratuita generosa y sin necesidad de administrar un servidor.
    | `TURSO_AUTH_TOKEN` | El token del paso 1 |
    | `JWT_SECRET` | Una cadena larga y aleatoria que tú inventes (ej. genera una con `openssl rand -base64 32`) |
    | `NODE_ENV` | `production` |
+   | `RESEND_API_KEY` | Opcional — activa el resumen diario de mantenimientos por correo (ver "Notificaciones por correo") |
+   | `RESEND_FROM_EMAIL` | Opcional — remitente del correo (requiere dominio verificado en Resend) |
+   | `CRON_SECRET` | Opcional pero recomendado si usas `RESEND_API_KEY` — protege el endpoint del Cron Job |
 
 4. **Despliega.** Vercel construye y publica automáticamente en cada push a
    la rama principal. La primera petición crea las tablas y la cuenta
@@ -269,6 +305,9 @@ routes/auth.js                Login / logout / sesión activa
 routes/users.js                Alta/edición/baja de cuentas (solo admin)
 routes/tools.js                API de activos + importación desde Excel
 routes/technicians.js          API de técnicos de manufactura
+routes/engineers.js             API de ingenieros
+routes/cron.js                  Endpoint del Cron de Vercel (notificaciones por correo)
+lib/email.js                    Envío de correo vía Resend
 routes/lines.js                API de líneas de ensamble
 routes/maintenance.js          API de programaciones (+ checklist) y bitácora
 routes/notifications.js        API de notificaciones (generación + lectura)
@@ -295,6 +334,9 @@ demo/preview-v2.html         Maqueta de revisión con login/roles/calendario (ve
 | POST | `/api/tools/import` | Importar herramientas desde Excel (solo admin) |
 | GET/POST | `/api/technicians` | Listar / crear técnicos (crear: solo admin) |
 | PUT/DELETE | `/api/technicians/:id` | Editar / eliminar técnico (solo admin) |
+| GET/POST | `/api/engineers` | Listar / crear ingenieros (crear: solo admin) |
+| PUT/DELETE | `/api/engineers/:id` | Editar / eliminar ingeniero (solo admin) |
+| GET | `/api/cron/notify-due` | Manda el resumen diario por correo a los técnicos (público, protegido por `CRON_SECRET`) |
 | GET/POST | `/api/lines` | Listar / crear líneas de ensamble (crear: solo admin) |
 | PUT/DELETE | `/api/lines/:id` | Editar / eliminar línea (solo admin) |
 | GET/POST | `/api/maintenance/schedules` | Programaciones (crear: solo admin) |
@@ -318,6 +360,6 @@ de lectura para cualquier rol autenticado.
   prototype pollution) sin parche disponible ahí; el riesgo es acotado
   porque el endpoint es solo para Administrador con archivos que tú mismo
   subes, pero evita importar archivos `.xlsx` de origen desconocido.
-- Las notificaciones son un centro **dentro de la app** (no se envía correo
-  ni SMS). Conectar un canal externo real requeriría credenciales de un
-  servicio de correo/SMS (ej. SMTP) que no están configuradas aquí.
+- El correo del resumen diario se envía vía Resend con HTML simple sin
+  imágenes de marca; personalízalo en `routes/cron.js` si quieres otro
+  formato o agregar tu logo.

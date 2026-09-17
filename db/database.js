@@ -70,6 +70,16 @@ const SCHEMA = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     area TEXT,
+    email TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS engineers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    area TEXT,
+    email TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -84,7 +94,7 @@ const SCHEMA = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    category TEXT NOT NULL DEFAULT 'herramienta' CHECK (category IN ('maquina','herramienta','proceso','equipo')),
+    category TEXT NOT NULL DEFAULT 'tooling' CHECK (category IN ('fixture','gancho','tooling')),
     type TEXT,
     location TEXT,
     assembly_line_id INTEGER REFERENCES assembly_lines(id) ON DELETE SET NULL,
@@ -174,11 +184,13 @@ const SCHEMA = `
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('admin','ingeniero','tecnico')),
     technician_id INTEGER REFERENCES technicians(id) ON DELETE SET NULL,
+    engineer_id INTEGER REFERENCES engineers(id) ON DELETE SET NULL,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_users_technician ON users(technician_id);
+  CREATE INDEX IF NOT EXISTS idx_users_engineer ON users(engineer_id);
 `;
 
 async function migrateAddColumn(sql) {
@@ -187,12 +199,51 @@ async function migrateAddColumn(sql) {
   }
 }
 
+// Migración de esquema: las categorías de activo cambiaron de
+// maquina/herramienta/proceso/equipo a fixture/gancho/tooling. SQLite no
+// permite alterar un CHECK ya existente, así que si la tabla tools quedó
+// creada con el enum viejo, se recrea preservando los datos.
+async function migrateToolCategoryEnum() {
+  const info = await client.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='tools'");
+  const row = info.rows && info.rows[0];
+  if (!row || !row.sql || !/'maquina'/.test(row.sql)) return;
+
+  await client.executeMultiple(`
+    ALTER TABLE tools RENAME TO tools_old_category_migration;
+    CREATE TABLE tools (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'tooling' CHECK (category IN ('fixture','gancho','tooling')),
+      type TEXT,
+      location TEXT,
+      assembly_line_id INTEGER REFERENCES assembly_lines(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'activo' CHECK (status IN ('activo','en_mantenimiento','baja')),
+      cost REAL,
+      notes TEXT,
+      photo_filename TEXT,
+      photo_original_name TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO tools (id, code, name, category, type, location, assembly_line_id, status, cost, notes, photo_filename, photo_original_name, created_at, updated_at)
+      SELECT id, code, name,
+        CASE category WHEN 'gancho' THEN 'gancho' WHEN 'herramienta' THEN 'gancho' ELSE 'tooling' END,
+        type, location, assembly_line_id, status, cost, notes, photo_filename, photo_original_name, created_at, updated_at
+      FROM tools_old_category_migration;
+    DROP TABLE tools_old_category_migration;
+  `);
+}
+
 async function init() {
   await client.executeMultiple(SCHEMA);
+  await migrateToolCategoryEnum();
 
   // Migración suave: agrega columnas nuevas a bases de datos ya existentes
   // (no rompe nada si la columna ya está, o si la tabla se acaba de crear).
   await migrateAddColumn('ALTER TABLE tools ADD COLUMN cost REAL');
+  await migrateAddColumn('ALTER TABLE technicians ADD COLUMN email TEXT');
+  await migrateAddColumn('ALTER TABLE users ADD COLUMN engineer_id INTEGER REFERENCES engineers(id) ON DELETE SET NULL');
 
   // Primer arranque: si no hay ninguna cuenta todavía, crea un admin por
   // defecto para poder entrar la primera vez. Cámbialo de inmediato desde
