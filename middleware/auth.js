@@ -1,8 +1,8 @@
 // Autenticación por sesión (cookie httpOnly + JWT) y permisos por rol.
 //
-// Roles: admin (control total), ingeniero (lectura + indicadores/acciones
-// correctivas), tecnico (lectura + solo puede registrar mantenimientos
-// bajo su propio nombre / de sus programaciones asignadas).
+// Roles: admin (control total), ingeniero (solo lectura), tecnico (lectura +
+// solo puede registrar mantenimientos bajo su propio nombre / de sus
+// programaciones asignadas).
 
 const jwt = require('jsonwebtoken');
 const db = require('../db/database');

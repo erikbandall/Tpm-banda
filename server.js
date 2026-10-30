@@ -24,7 +24,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // La base de datos se inicializa de forma asíncrona (creación de tablas,
-// migraciones, semilla de indicadores/admin). Esta pequeña espera evita que
+// migraciones, semilla de la cuenta admin). Esta pequeña espera evita que
 // la primera petición llegue antes de que las tablas existan (típico en
 // funciones serverless que arrancan en frío).
 app.use((req, res, next) => { db.ready.then(() => next(), next); });
